@@ -1,0 +1,20 @@
+server:
+  port: 0
+  address: 127.0.0.1
+  shutdown: graceful
+
+spring:
+  main:
+    lazy-initialization: true
+  web:
+    resources:
+      add-mappings: false
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+
+claw:
+  home: ${user.home}/.c-claw
+
+logging:
+  level:
+    cc.claw: DEBUG

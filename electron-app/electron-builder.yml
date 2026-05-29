@@ -1,0 +1,10 @@
+appId: cc.claw.app
+productName: C-Claw
+directories:
+  output: dist
+win:
+  target: nsis
+mac:
+  target: dmg
+linux:
+  target: AppImage
