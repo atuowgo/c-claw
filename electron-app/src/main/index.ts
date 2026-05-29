@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { createTray } from './tray'
 import { JavaProcess } from './java-launcher'
+import { start as startBridge, stop as stopBridge, bridgePort } from './bridge'
 
 let mainWindow: BrowserWindow | null = null
 let javaProcess: JavaProcess | null = null
@@ -41,8 +42,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  // Register IPC handler so renderer can query the backend port
+  // Register IPC handlers
   ipcMain.handle('get-backend-port', () => javaProcess?.getPort() ?? null)
+  ipcMain.handle('get-bridge-port', () => bridgePort)
 
   // Start Java backend before showing the window
   javaProcess = new JavaProcess()
@@ -51,6 +53,13 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[c-claw] Failed to start Java backend:', err)
     // Continue anyway — app can show an error state
+  }
+
+  // Start Bridge HTTP server
+  try {
+    await startBridge()
+  } catch (err) {
+    console.error('[c-claw] Failed to start Bridge server:', err)
   }
 
   createWindow()
@@ -74,4 +83,5 @@ app.on('before-quit', () => {
   if (javaProcess) {
     javaProcess.stop()
   }
+  stopBridge()
 })
