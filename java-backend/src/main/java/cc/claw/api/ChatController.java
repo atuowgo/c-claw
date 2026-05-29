@@ -25,11 +25,21 @@ public class ChatController {
 
     @PostMapping("/chat")
     public SseEmitter chat(@RequestBody ChatRequest request) {
-        SseEmitter emitter = new SseEmitter(60000L); // 60 second timeout
+        SseEmitter emitter = new SseEmitter(120000L);
 
         claudeService.streamMessage(
             request.message(),
             text -> sendEvent(emitter, "text", Map.of("delta", text)),
+            toolCall -> sendEvent(emitter, "tool_call", Map.of(
+                "toolUseId", toolCall.toolUseId(),
+                "toolName", toolCall.toolName()
+            )),
+            toolResult -> sendEvent(emitter, "tool_result", Map.of(
+                "toolUseId", toolResult.toolUseId(),
+                "toolName", toolResult.toolName(),
+                "success", toolResult.success(),
+                "summary", toolResult.summary()
+            )),
             error -> {
                 log.error("Chat error", error);
                 sendEvent(emitter, "error", Map.of("message", error.getMessage()));

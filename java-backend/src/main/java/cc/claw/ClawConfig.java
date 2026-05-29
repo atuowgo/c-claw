@@ -8,9 +8,14 @@ import java.nio.file.Paths;
 
 @ConfigurationProperties(prefix = "claw")
 public record ClawConfig(
-    @DefaultValue("${user.home}/.c-claw") String home
+    @DefaultValue("${user.home}/.c-claw") String home,
+    @DefaultValue("19800") int bridgePort
 ) {
     public Path homePath() {
         return Paths.get(home);
+    }
+
+    public String bridgeUrl() {
+        return "http://127.0.0.1:" + bridgePort;
     }
 }
