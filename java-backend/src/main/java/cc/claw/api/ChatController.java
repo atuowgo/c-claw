@@ -46,7 +46,11 @@ public class ChatController {
                 emitter.complete();
             },
             () -> {
-                sendEvent(emitter, "done", Map.of());
+                try {
+                    sendEvent(emitter, "done", Map.of());
+                } catch (Exception e) {
+                    log.error("Failed to send done event", e);
+                }
                 emitter.complete();
             }
         );

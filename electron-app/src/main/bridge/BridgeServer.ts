@@ -11,7 +11,7 @@ export let bridgePort: number | null = null
 
 const app = express()
 let server: Server | null = null
-const clipboardWatcher = new ClipboardWatcher()
+const clipboardWatcher = ClipboardWatcher.getInstance()
 
 // CORS: allow local origins
 app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -130,6 +130,16 @@ export function stop(): Promise<void> {
       server.close(() => {
         server = null
         bridgePort = null
+        // Clean up port file
+        const configDir = path.join(os.homedir(), '.c-claw')
+        const portFile = path.join(configDir, 'bridge.port')
+        try {
+            if (fs.existsSync(portFile)) {
+                fs.unlinkSync(portFile)
+            }
+        } catch (e) {
+            console.error('[c-claw] Failed to remove bridge.port:', e)
+        }
         console.log('[c-claw] Bridge HTTP server stopped')
         resolve()
       })

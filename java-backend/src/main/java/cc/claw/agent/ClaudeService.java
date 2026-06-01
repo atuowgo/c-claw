@@ -168,7 +168,8 @@ public class ClaudeService {
                 inputBuilder.putAdditionalProperty(entry.getKey(), JsonValue.fromJsonNode(entry.getValue()));
             }
         } catch (Exception e) {
-            log.warn("Failed to parse tool input JSON: {}", tu.inputJson(), e);
+            log.error("Failed to parse tool input JSON: input={}", tu.inputJson(), e);
+            throw new RuntimeException("Failed to parse tool input JSON for tool " + tu.name(), e);
         }
         return ToolUseBlockParam.builder()
             .id(tu.id())

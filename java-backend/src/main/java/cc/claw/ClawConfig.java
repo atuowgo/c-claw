@@ -16,6 +16,7 @@ public record ClawConfig(
     @DefaultValue("19800") int bridgePort
 ) {
     private static final Logger log = LoggerFactory.getLogger(ClawConfig.class);
+    private static volatile Integer cachedBridgePort;
 
     public Path homePath() {
         return Paths.get(home);
@@ -27,15 +28,20 @@ public record ClawConfig(
     }
 
     private int resolveBridgePort() {
+        if (cachedBridgePort != null) {
+            return cachedBridgePort;
+        }
         Path portFile = Paths.get(home, "bridge.port");
         if (Files.exists(portFile)) {
             try {
                 String content = Files.readString(portFile).trim();
-                return Integer.parseInt(content);
+                cachedBridgePort = Integer.parseInt(content);
+                return cachedBridgePort;
             } catch (IOException | NumberFormatException e) {
                 log.warn("Failed to read bridge.port, falling back to default port {}", bridgePort);
             }
         }
-        return bridgePort;
+        cachedBridgePort = bridgePort;
+        return cachedBridgePort;
     }
 }

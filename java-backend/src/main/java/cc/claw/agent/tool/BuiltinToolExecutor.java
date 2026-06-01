@@ -6,9 +6,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +32,10 @@ public class BuiltinToolExecutor implements ToolExecutor {
     private final ObjectMapper objectMapper;
 
     public BuiltinToolExecutor(ClawConfig config) {
-        this.restTemplate = new RestTemplate();
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(10000);
+        this.restTemplate = new RestTemplate(factory);
         this.bridgeUrl = config.bridgeUrl();
         this.tools = BuiltinToolDefinitions.all();
         this.objectMapper = new ObjectMapper();
@@ -68,7 +74,7 @@ public class BuiltinToolExecutor implements ToolExecutor {
             JsonNode args = objectMapper.readTree(arguments);
             String url = bridgeUrl + "/bridge/window/active";
             if (args.has("processName") && !args.get("processName").isNull()) {
-                url += "?processName=" + args.get("processName").asText();
+                url += "?processName=" + URLEncoder.encode(args.get("processName").asText(), StandardCharsets.UTF_8);
             }
             String result = restTemplate.getForObject(url, String.class);
             return ToolResult.success(toolUseId, "window_watcher", result != null ? result : "{}");

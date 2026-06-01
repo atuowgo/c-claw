@@ -182,8 +182,15 @@ public class MemoryStore {
         }
     }
 
+    private static String escapeLike(String s) {
+        return s.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+    }
+
     public List<MemoryEntry> searchMemories(String query, int limit) {
-        String likeQuery = "%" + query + "%";
+        String escapedQuery = escapeLike(query);
+        String likeQuery = "%" + escapedQuery + "%";
         String sql = "SELECT type, content, keywords, importance FROM memories WHERE keywords LIKE ? OR content LIKE ? ORDER BY importance DESC LIMIT ?";
         List<MemoryEntry> results = new ArrayList<>();
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {

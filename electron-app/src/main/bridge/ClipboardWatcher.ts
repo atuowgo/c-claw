@@ -6,18 +6,23 @@ export interface ClipboardChange {
   timestamp: number
 }
 
-let instance: ClipboardWatcher | null = null
-
 export class ClipboardWatcher extends EventEmitter {
   private timer: ReturnType<typeof setInterval> | null = null
   private lastContent: string = ''
   private lastTimestamp: number = 0
   private running: boolean = false
 
-  constructor() {
+  private static instance: ClipboardWatcher | null = null
+
+  static getInstance(): ClipboardWatcher {
+    if (!ClipboardWatcher.instance) {
+      ClipboardWatcher.instance = new ClipboardWatcher()
+    }
+    return ClipboardWatcher.instance
+  }
+
+  private constructor() {
     super()
-    if (instance) return instance
-    instance = this
   }
 
   start(): void {
@@ -55,8 +60,8 @@ export class ClipboardWatcher extends EventEmitter {
   }
 
   writeContent(content: string): void {
+    clipboard.writeText(content)
     this.lastContent = content
     this.lastTimestamp = Date.now()
-    clipboard.writeText(content)
   }
 }

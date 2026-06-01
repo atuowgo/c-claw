@@ -15,7 +15,8 @@ export async function getActiveWindow(): Promise<ActiveWindowResult | null> {
       processName: result.owner.name,
       pid: result.owner.processId
     }
-  } catch {
+  } catch (err) {
+    console.error('[c-claw] WindowWatcher error:', err)
     return null
   }
 }
