@@ -1,5 +1,6 @@
 package cc.claw;
 
+import cc.claw.config.AnthropicProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -13,7 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 @SpringBootApplication
-@EnableConfigurationProperties(ClawConfig.class)
+@EnableConfigurationProperties({ClawConfig.class, AnthropicProperties.class})
 public class ClawApplication {
 
     private final Environment environment;

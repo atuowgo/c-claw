@@ -3,6 +3,7 @@ package cc.claw.agent;
 import cc.claw.agent.tool.ToolDefinition;
 import cc.claw.agent.tool.ToolExecutor;
 import cc.claw.agent.tool.ToolResult;
+import cc.claw.config.AnthropicProperties;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
@@ -43,20 +44,22 @@ public class ClaudeService {
         """;
 
     private static final int MAX_TOOL_ROUNDS = 10;
-    private static final String MODEL = "claude-sonnet-4-20250514";
 
     private final AnthropicClient client;
+    private final String model;
     private final AsyncTaskExecutor executor;
     private final ToolExecutor toolExecutor;
     private final ObjectMapper objectMapper;
 
     public ClaudeService(AnthropicClient client,
                          AsyncTaskExecutor executor,
-                         ToolExecutor toolExecutor) {
+                         ToolExecutor toolExecutor,
+                         AnthropicProperties props) {
         this.client = client;
         this.executor = executor;
         this.toolExecutor = toolExecutor;
         this.objectMapper = new ObjectMapper();
+        this.model = props.modelName();
     }
 
     /**
@@ -69,11 +72,16 @@ public class ClaudeService {
                               Consumer<Throwable> onError,
                               Runnable onComplete) {
         executor.execute(() -> {
+            String msgPreview = userMessage.length() > 100
+                ? userMessage.substring(0, 100) + "..."
+                : userMessage;
+            log.info("[Agent] 开始处理: message={}", msgPreview);
             try {
                 runAgentLoop(userMessage, onDelta, onToolCall, onToolResult);
+                log.info("[Agent] 处理完成, 调用onComplete");
                 onComplete.run();
             } catch (Exception e) {
-                log.error("Agent loop error", e);
+                log.error("[Agent] 处理异常: {}", e.getMessage(), e);
                 onError.accept(e);
             }
         });
@@ -96,23 +104,31 @@ public class ClaudeService {
             .map(ToolDefinition::anthropicTool)
             .toList();
 
+        log.info("[Agent] 工具数量: {}", tools.size());
+
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
+            log.info("[Agent] --- 第{}轮开始 ---", round + 1);
             var params = buildParams(messages, tools);
             CollectedResponse collected;
 
             try (StreamResponse<RawMessageStreamEvent> stream =
                      client.messages().createStreaming(params)) {
+                log.info("[Agent] 第{}轮: API流已建立, 开始收集响应", round + 1);
                 collected = collectStreamResponse(stream, onDelta, onToolCall);
+                log.info("[Agent] 第{}轮: 流收集完成, textDeltas={}, toolUses={}",
+                    round + 1, collected.textDeltaCount(), collected.toolUses().size());
             } catch (Exception e) {
-                log.error("Claude API error in round {}", round, e);
+                log.error("[Agent] 第{}轮 API异常: {}", round + 1, e.getMessage(), e);
                 throw new RuntimeException("Claude API error: " + e.getMessage(), e);
             }
 
             List<PendingToolUse> toolUses = collected.toolUses();
             if (toolUses.isEmpty()) {
+                log.info("[Agent] 第{}轮: 无工具调用, 对话结束", round + 1);
                 return;
             }
 
+            log.info("[Agent] 第{}轮: 执行{}个工具调用", round + 1, toolUses.size());
             // Build assistant message with tool_use blocks
             List<ContentBlockParam> assistantBlocks = new ArrayList<>();
             for (PendingToolUse tu : toolUses) {
@@ -126,7 +142,10 @@ public class ClaudeService {
 
             // Execute all tool calls in parallel
             List<CompletableFuture<ToolResult>> futures = toolUses.stream()
-                .map(tu -> toolExecutor.execute(tu.id(), tu.name(), tu.inputJson()))
+                .map(tu -> {
+                    log.info("[Agent] 执行工具: id={}, name={}", tu.id(), tu.name());
+                    return toolExecutor.execute(tu.id(), tu.name(), tu.inputJson());
+                })
                 .toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -134,6 +153,8 @@ public class ClaudeService {
             List<ContentBlockParam> toolResultBlocks = new ArrayList<>();
             for (CompletableFuture<ToolResult> future : futures) {
                 ToolResult result = future.join();
+                log.info("[Agent] 工具结果: id={}, name={}, success={}, contentLen={}",
+                    result.toolUseId(), result.toolName(), result.success(), result.content().length());
                 ToolResultBlockParam resultBlock = ToolResultBlockParam.builder()
                     .toolUseId(result.toolUseId())
                     .content(ToolResultBlockParam.Content.ofString(result.content()))
@@ -154,6 +175,7 @@ public class ClaudeService {
                 .build());
         }
 
+        log.warn("[Agent] 达到最大轮次{}, 发送超时提示", MAX_TOOL_ROUNDS);
         onDelta.accept("抱歉，处理超时，请简化请求重试。");
     }
 
@@ -168,7 +190,7 @@ public class ClaudeService {
                 inputBuilder.putAdditionalProperty(entry.getKey(), JsonValue.fromJsonNode(entry.getValue()));
             }
         } catch (Exception e) {
-            log.error("Failed to parse tool input JSON: input={}", tu.inputJson(), e);
+            log.error("[Agent] 工具输入JSON解析失败: tool={}, input={}", tu.name(), tu.inputJson(), e);
             throw new RuntimeException("Failed to parse tool input JSON for tool " + tu.name(), e);
         }
         return ToolUseBlockParam.builder()
@@ -185,18 +207,31 @@ public class ClaudeService {
             Consumer<ToolCallInfo> onToolCall) {
 
         Map<Long, PendingToolUse.Builder> toolUseBuilders = new LinkedHashMap<>();
+        int[] textDeltaCount = {0};
 
         stream.stream().forEach(event -> {
             event.contentBlockStart().ifPresent(start -> {
                 start.contentBlock().toolUse().ifPresent(toolUse -> {
+                    log.info("[Agent] 流事件 contentBlockStart: index={}, toolId={}, toolName={}",
+                        start.index(), toolUse.id(), toolUse.name());
                     toolUseBuilders.put(start.index(),
                         new PendingToolUse.Builder(toolUse.id(), toolUse.name()));
                     onToolCall.accept(new ToolCallInfo(toolUse.id(), toolUse.name()));
                 });
+                start.contentBlock().text().ifPresent(text -> {
+                    log.info("[Agent] 流事件 contentBlockStart: index={}, type=text", start.index());
+                });
             });
 
             event.contentBlockDelta().ifPresent(deltaEvent -> {
-                deltaEvent.delta().text().ifPresent(t -> onDelta.accept(t.text()));
+                deltaEvent.delta().text().ifPresent(t -> {
+                    textDeltaCount[0]++;
+                    if (textDeltaCount[0] <= 3) {
+                        log.info("[Agent] 流事件 textDelta #{}: \"{}\"", textDeltaCount[0],
+                            t.text().length() > 80 ? t.text().substring(0, 80) + "..." : t.text());
+                    }
+                    onDelta.accept(t.text());
+                });
                 deltaEvent.delta().inputJson().ifPresent(jsonDelta ->
                     toolUseBuilders.computeIfPresent(deltaEvent.index(), (k, builder) -> {
                         builder.appendInput(jsonDelta.partialJson());
@@ -205,17 +240,20 @@ public class ClaudeService {
             });
         });
 
+        log.info("[Agent] 流结束: textDelta总数={}, toolUse总数={}",
+            textDeltaCount[0], toolUseBuilders.size());
+
         List<PendingToolUse> toolUses = toolUseBuilders.values().stream()
             .map(PendingToolUse.Builder::build)
             .toList();
 
-        return new CollectedResponse(toolUses);
+        return new CollectedResponse(toolUses, textDeltaCount[0]);
     }
 
     /** Build MessageCreateParams with tools. */
     private MessageCreateParams buildParams(List<MessageParam> messages, List<Tool> tools) {
         var builder = MessageCreateParams.builder()
-            .model(Model.of(MODEL))
+            .model(Model.of(model))
             .maxTokens(4096)
             .system(SYSTEM_PROMPT)
             .messages(messages);
@@ -224,12 +262,14 @@ public class ClaudeService {
             builder.tools(tools.stream().map(ToolUnion::ofTool).toList());
         }
 
+        log.debug("[Agent] buildParams: model={}, messages={}, tools={}",
+            model, messages.size(), tools.size());
         return builder.build();
     }
 
     // -- internal records --
 
-    record CollectedResponse(List<PendingToolUse> toolUses) {}
+    record CollectedResponse(List<PendingToolUse> toolUses, int textDeltaCount) {}
 
     record PendingToolUse(String id, String name, String inputJson) {
         static class Builder {

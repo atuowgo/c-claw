@@ -15,6 +15,13 @@ spring:
 claw:
   home: ${user.home}/.c-claw
 
+anthropic:
+  base-url: http://172.21.197.208:8080/efllmas-agw/anthropicproxy
+  model-name: kimi-k2.5-aliyun
+  key: sk-zht_dev_adamcchen
+
 logging:
+  charset:
+    console: UTF-8
   level:
     cc.claw: DEBUG

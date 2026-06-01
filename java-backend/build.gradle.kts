@@ -30,3 +30,15 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// Copy bootJar output to target/ for Electron dev-mode auto-start
+tasks.register<Copy>("copyJarToTarget") {
+    dependsOn(tasks.bootJar, tasks.jar)
+    from(layout.buildDirectory.dir("libs"))
+    into(layout.projectDirectory.dir("target"))
+    include("*.jar")
+}
+
+tasks.named("build") {
+    dependsOn("copyJarToTarget")
+}

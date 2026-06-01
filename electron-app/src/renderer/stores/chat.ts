@@ -75,7 +75,6 @@ export const useChatStore = defineStore('chat', () => {
             while (true) {
                 const { done, value } = await reader.read()
                 if (done) {
-                    // Flush decoder: final call without stream flag to emit remaining bytes
                     buffer += decoder.decode()
                     break
                 }
@@ -100,7 +99,9 @@ export const useChatStore = defineStore('chat', () => {
                             try {
                                 const parsed = JSON.parse(data)
                                 assistantMsg.content += parsed.delta || ''
-                            } catch {}
+                            } catch {
+                                // skip malformed delta
+                            }
                         } else if (currentEvent === 'error') {
                             try {
                                 const parsed = JSON.parse(data)
