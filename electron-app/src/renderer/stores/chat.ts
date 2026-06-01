@@ -19,7 +19,10 @@ export const useChatStore = defineStore('chat', () => {
         if (backendPort) return backendPort
         if (window.electronAPI?.getBackendPort) {
             backendPort = await window.electronAPI.getBackendPort()
-            return backendPort!
+            if (backendPort === null) {
+                throw new Error('Backend not started. Please restart the application.')
+            }
+            return backendPort
         }
         throw new Error('Backend port not available')
     }
@@ -71,7 +74,11 @@ export const useChatStore = defineStore('chat', () => {
 
             while (true) {
                 const { done, value } = await reader.read()
-                if (done) break
+                if (done) {
+                    // Flush decoder: final call without stream flag to emit remaining bytes
+                    buffer += decoder.decode()
+                    break
+                }
 
                 buffer += decoder.decode(value, { stream: true })
 
@@ -84,10 +91,11 @@ export const useChatStore = defineStore('chat', () => {
                         currentEvent = ''
                         continue
                     }
-                    if (line.startsWith('event: ')) {
-                        currentEvent = line.slice(7).trim()
-                    } else if (line.startsWith('data: ')) {
-                        const data = line.slice(6)
+                    // Spring SseEmitter sends "event:text" (no space), but SSE spec allows both
+                    if (line.startsWith('event:')) {
+                        currentEvent = line.slice(6).trim()
+                    } else if (line.startsWith('data:')) {
+                        const data = line.slice(5).trim()
                         if (currentEvent === 'text') {
                             try {
                                 const parsed = JSON.parse(data)

@@ -22,13 +22,16 @@ export class JavaProcess {
    * Returns the port number once the backend is healthy.
    */
   async start(): Promise<number> {
+    // 删除上次运行遗留的端口文件，避免读到旧端口
+    try { fs.unlinkSync(this.portFilePath) } catch {}
+
     const javaPath = findJava()
     const jarPath = findJar()
 
     console.log(`[c-claw] Starting Java backend: ${javaPath} -jar ${jarPath}`)
 
     return new Promise((resolve, reject) => {
-      this.process = spawn(javaPath, ['-jar', jarPath], {
+      this.process = spawn(javaPath, ['-Dfile.encoding=UTF-8', '-jar', jarPath], {
         env: { ...process.env },
         stdio: ['ignore', 'pipe', 'pipe']
       })
@@ -36,7 +39,7 @@ export class JavaProcess {
       let startupTimeout: NodeJS.Timeout
 
       this.process.stdout?.on('data', (data: Buffer) => {
-        console.log(`[java] ${data.toString().trim()}`)
+        console.log(`[java] ${data.toString('utf-8').trim()}`)
       })
 
       this.process.stderr?.on('data', (data: Buffer) => {
