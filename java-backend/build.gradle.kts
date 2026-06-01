@@ -21,6 +21,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("com.anthropic:anthropic-java:2.34.1")
+    implementation("org.xerial:sqlite-jdbc:3.45.1.0")
+    implementation("org.yaml:snakeyaml:2.2")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }

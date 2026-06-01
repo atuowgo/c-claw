@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from 'express'
 import { Server } from 'http'
 import { getActiveWindow } from './WindowWatcher'
 import { ClipboardWatcher } from './ClipboardWatcher'
+import { shortcutManager } from './ShortcutManager'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -46,6 +47,26 @@ app.post('/bridge/clipboard', (req: Request, res: Response) => {
   }
   clipboardWatcher.writeContent(content)
   res.json({ success: true })
+})
+
+app.post('/bridge/shortcut', (req: Request, res: Response) => {
+  const { key, action } = req.body
+  if (typeof key !== 'string' || typeof action !== 'string') {
+    res.status(400).json({ error: 'key and action must be strings' })
+    return
+  }
+  const success = shortcutManager.register(key, action)
+  res.json({ registered: success, key, action })
+})
+
+app.delete('/bridge/shortcut/:key', (req: Request, res: Response) => {
+  const { key } = req.params
+  shortcutManager.unregister(key)
+  res.json({ unregistered: true, key })
+})
+
+app.get('/bridge/shortcuts', (_req: Request, res: Response) => {
+  res.json(shortcutManager.list())
 })
 
 app.get('/bridge/clipboard/events', (_req: Request, res: Response) => {
@@ -104,6 +125,7 @@ export function start(): Promise<number> {
 export function stop(): Promise<void> {
   return new Promise((resolve) => {
     clipboardWatcher.stop()
+    shortcutManager.unregisterAll()
     if (server) {
       server.close(() => {
         server = null

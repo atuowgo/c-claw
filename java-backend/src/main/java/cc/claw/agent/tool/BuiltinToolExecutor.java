@@ -66,7 +66,7 @@ public class BuiltinToolExecutor implements ToolExecutor {
     private ToolResult executeWindowWatcher(String toolUseId, String arguments) {
         try {
             JsonNode args = objectMapper.readTree(arguments);
-            String url = bridgeUrl + "/api/window/current";
+            String url = bridgeUrl + "/bridge/window/active";
             if (args.has("processName") && !args.get("processName").isNull()) {
                 url += "?processName=" + args.get("processName").asText();
             }
@@ -79,7 +79,7 @@ public class BuiltinToolExecutor implements ToolExecutor {
 
     private ToolResult executeClipboardRead(String toolUseId) {
         try {
-            String result = restTemplate.getForObject(bridgeUrl + "/api/clipboard", String.class);
+            String result = restTemplate.getForObject(bridgeUrl + "/bridge/clipboard", String.class);
             return ToolResult.success(toolUseId, "clipboard_read", result != null ? result : "");
         } catch (Exception e) {
             return ToolResult.failure(toolUseId, "clipboard_read", "Bridge error: " + e.getMessage());
@@ -89,16 +89,16 @@ public class BuiltinToolExecutor implements ToolExecutor {
     private ToolResult executeClipboardWrite(String toolUseId, String arguments) {
         try {
             JsonNode args = objectMapper.readTree(arguments);
-            if (!args.has("text")) {
-                return ToolResult.failure(toolUseId, "clipboard_write", "Missing required parameter 'text'");
+            if (!args.has("content")) {
+                return ToolResult.failure(toolUseId, "clipboard_write", "Missing required parameter 'content'");
             }
-            String text = args.get("text").asText();
+            String text = args.get("content").asText();
             if (text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_CLIPBOARD_BYTES) {
                 return ToolResult.failure(toolUseId, "clipboard_write",
                     "Text exceeds maximum size of " + (MAX_CLIPBOARD_BYTES / 1024) + "KB");
             }
-            Map<String, String> body = Map.of("text", text);
-            restTemplate.postForObject(bridgeUrl + "/api/clipboard", body, String.class);
+            Map<String, String> body = Map.of("content", text);
+            restTemplate.postForObject(bridgeUrl + "/bridge/clipboard", body, String.class);
             return ToolResult.success(toolUseId, "clipboard_write", "{\"written\":true}");
         } catch (Exception e) {
             return ToolResult.failure(toolUseId, "clipboard_write", "Bridge error: " + e.getMessage());
@@ -116,7 +116,7 @@ public class BuiltinToolExecutor implements ToolExecutor {
                 "key", args.get("key").asText(),
                 "action", args.get("action").asText()
             );
-            restTemplate.postForObject(bridgeUrl + "/api/shortcut/register", body, String.class);
+            restTemplate.postForObject(bridgeUrl + "/bridge/shortcut", body, String.class);
             return ToolResult.success(toolUseId, "shortcut_register", "{\"registered\":true}");
         } catch (Exception e) {
             return ToolResult.failure(toolUseId, "shortcut_register", "Bridge error: " + e.getMessage());

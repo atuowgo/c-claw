@@ -57,12 +57,12 @@ public final class BuiltinToolDefinitions {
             .inputSchema(Tool.InputSchema.builder()
                 .type(JsonValue.from("object"))
                 .properties(Tool.InputSchema.Properties.builder()
-                    .putAdditionalProperty("text",
+                    .putAdditionalProperty("content",
                         JsonValue.from(Map.of(
                             "type", "string",
                             "description", "要写入剪贴板的文本内容")))
                     .build())
-                .required(List.of("text"))
+                .required(List.of("content"))
                 .build())
             .build()
     );

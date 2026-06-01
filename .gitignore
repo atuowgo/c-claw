@@ -1,8 +1,40 @@
-/node_modules
+# ===== Node / Electron =====
+node_modules/
+dist/
+out/
+.vite/
+
+# ===== Java / Gradle =====
 .gradle/
 build/
-out/
-*.iml
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+*.jar
+*.war
+target/
+bin/
+
+# ===== IDE =====
 .idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# ===== OS =====
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# ===== Environment =====
+.env
+.env.local
+.env.*.local
+
+# ===== Logs & DB =====
+*.log
+*.db
+
+# ===== C-Claw Runtime =====
+.c-claw/

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron'
 import { join } from 'path'
 import { createTray } from './tray'
 import { JavaProcess } from './java-launcher'
@@ -65,6 +65,23 @@ app.whenReady().then(async () => {
   createWindow()
   createTray(mainWindow!)
 
+  // Register Alt+Space global shortcut to toggle window
+  const altSpaceRegistered = globalShortcut.register('Alt+Space', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide()
+      } else {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }
+  })
+  if (altSpaceRegistered) {
+    console.log('[c-claw] Global shortcut registered: Alt+Space')
+  } else {
+    console.warn('[c-claw] Failed to register Alt+Space (may be taken by another app)')
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -79,6 +96,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  globalShortcut.unregisterAll()
   // Stop Java backend on quit
   if (javaProcess) {
     javaProcess.stop()
