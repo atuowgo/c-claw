@@ -47,13 +47,15 @@ export const useChatStore = defineStore('chat', () => {
         messages.value.push(userMsg)
 
         // Create placeholder for assistant response
-        const assistantMsg: Message = {
-            id: generateId(),
+        const assistantId = generateId()
+        messages.value.push({
+            id: assistantId,
             role: 'assistant',
             content: '',
             isStreaming: true
-        }
-        messages.value.push(assistantMsg)
+        })
+        // Access via reactive array to ensure Vue tracks mutations
+        const getAssistantMsg = (): Message => messages.value.find(m => m.id === assistantId)!
 
         try {
             const port = await getPort()
@@ -98,7 +100,7 @@ export const useChatStore = defineStore('chat', () => {
                         if (currentEvent === 'text') {
                             try {
                                 const parsed = JSON.parse(data)
-                                assistantMsg.content += parsed.delta || ''
+                                getAssistantMsg().content += parsed.delta || ''
                             } catch {
                                 // skip malformed delta
                             }
@@ -115,11 +117,12 @@ export const useChatStore = defineStore('chat', () => {
                 }
             }
 
-            assistantMsg.isStreaming = false
+            getAssistantMsg().isStreaming = false
         } catch (e: any) {
             error.value = e.message || 'Failed to send message'
-            assistantMsg.content = assistantMsg.content || '(Error: failed to get response)'
-            assistantMsg.isStreaming = false
+            const msg = getAssistantMsg()
+            msg.content = msg.content || '(Error: failed to get response)'
+            msg.isStreaming = false
         } finally {
             isSending.value = false
         }
