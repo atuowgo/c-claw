@@ -1,3 +1,3 @@
 package cc.claw.agent;
 
-public record ChatRequest(String message) {}
+public record ChatRequest(String message, String sessionId) {}

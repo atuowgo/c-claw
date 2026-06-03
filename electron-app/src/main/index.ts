@@ -9,8 +9,10 @@ let javaProcess: JavaProcess | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     center: true,
     resizable: true,
     frame: true,

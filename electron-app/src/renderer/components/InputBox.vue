@@ -65,7 +65,7 @@ function send(): void {
   resize: none;
   padding: 10px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background-color: var(--bg-color);
   color: var(--text-primary);
   font-family: inherit;
@@ -74,6 +74,10 @@ function send(): void {
   max-height: 120px;
   outline: none;
   transition: border-color 0.15s ease;
+}
+
+.input-area:focus-within {
+  box-shadow: 0 0 0 2px rgba(74, 124, 247, 0.3);
 }
 
 .input-field:focus {
@@ -91,7 +95,7 @@ function send(): void {
 .send-button {
   padding: 10px 20px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background-color: var(--accent-color);
   color: #fff;
   font-family: inherit;

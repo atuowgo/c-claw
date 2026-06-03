@@ -6,17 +6,27 @@
       <p>I'm your local AI assistant</p>
     </div>
 
-    <div v-for="msg in messages" :key="msg.id"
-         :class="['message', msg.role]">
-      <div class="message-role">{{ msg.role === 'user' ? 'You' : 'Claw' }}</div>
-      <div class="message-content" v-html="renderContent(msg)"></div>
-      <div v-if="msg.isStreaming" class="streaming-indicator">
-        <span class="cursor">|</span>
-      </div>
-    </div>
+    <div v-for="msg in messages" :key="msg.id" :class="['message-row', msg.role]">
+      <AssistantAvatar v-if="msg.role === 'assistant'" size="md" class="avatar-slot" />
 
-    <div v-if="error" class="error-banner">
-      {{ error }}
+      <div class="bubble" :class="msg.role">
+        <ThinkingBlock
+          v-if="msg.role === 'assistant' && msg.thinking"
+          :content="msg.thinking"
+          :isStreaming="msg.isStreaming"
+        />
+        <div class="message-content" v-html="renderContent(msg)"></div>
+        <span v-if="msg.isStreaming && isLastMessage(msg)" class="cursor">|</span>
+
+        <div v-if="msg.role === 'assistant' && msg.toolCalls?.length" class="tool-calls-pill">
+          <span class="tool-calls-icon">&#x1F527;</span>
+          <span class="tool-calls-names">
+            {{ msg.toolCalls.map(t => t.toolName).join(', ') }}
+          </span>
+        </div>
+      </div>
+
+      <UserAvatar v-if="msg.role === 'user'" name="You" size="md" class="avatar-slot" />
     </div>
   </div>
 </template>
@@ -26,53 +36,57 @@ import { ref, watch, nextTick } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import type { Message } from '../stores/chat'
+import ThinkingBlock from './ThinkingBlock.vue'
+import UserAvatar from './UserAvatar.vue'
+import AssistantAvatar from './AssistantAvatar.vue'
 
 const props = defineProps<{
-    messages: Message[]
-    error: string | null
+  messages: Message[]
 }>()
 
 const listRef = ref<HTMLElement>()
 
 function renderContent(msg: Message): string {
-    if (msg.role === 'user') {
-        // Escape HTML in user messages
-        return escapeHtml(msg.content)
-    }
-    // Render assistant messages as Markdown
-    try {
-        const raw = marked.parse(msg.content, { async: false }) as string
-        return DOMPurify.sanitize(raw)
-    } catch {
-        return escapeHtml(msg.content)
-    }
+  if (msg.role === 'user') {
+    return escapeHtml(msg.content)
+  }
+  try {
+    const raw = marked.parse(msg.content, { async: false }) as string
+    return DOMPurify.sanitize(raw)
+  } catch {
+    return escapeHtml(msg.content)
+  }
 }
 
 function escapeHtml(text: string): string {
-    const div = document.createElement('div')
-    div.textContent = text
-    return div.innerHTML
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
+function isLastMessage(msg: Message): boolean {
+  return props.messages.length > 0 && props.messages[props.messages.length - 1].id === msg.id
 }
 
 // Auto-scroll to bottom when new messages arrive
 watch(() => props.messages.length, () => {
-    nextTick(() => {
-        if (listRef.value) {
-            listRef.value.scrollTop = listRef.value.scrollHeight
-        }
-    })
+  nextTick(() => {
+    if (listRef.value) {
+      listRef.value.scrollTop = listRef.value.scrollHeight
+    }
+  })
 })
 
 // Also scroll during streaming updates
 watch(() => {
-    const lastMsg = props.messages[props.messages.length - 1]
-    return lastMsg?.content.length ?? 0
+  const lastMsg = props.messages[props.messages.length - 1]
+  return lastMsg?.content.length ?? 0
 }, () => {
-    nextTick(() => {
-        if (listRef.value) {
-            listRef.value.scrollTop = listRef.value.scrollHeight
-        }
-    })
+  nextTick(() => {
+    if (listRef.value) {
+      listRef.value.scrollTop = listRef.value.scrollHeight
+    }
+  })
 })
 </script>
 
@@ -83,7 +97,7 @@ watch(() => {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .empty-state {
@@ -113,34 +127,48 @@ watch(() => {
   margin: 0;
 }
 
-.message {
-  max-width: 70%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  line-height: 1.5;
+/* Message row */
+.message-row {
+  display: flex;
+  gap: 10px;
+  max-width: 80%;
 }
 
-.message.user {
+.message-row.user {
   align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.message-row.assistant {
+  align-self: flex-start;
+}
+
+.avatar-slot {
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* Bubble */
+.bubble {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.bubble.user {
   background-color: var(--bubble-user);
   color: var(--text-primary);
   border-bottom-right-radius: 4px;
 }
 
-.message.assistant {
-  align-self: flex-start;
+.bubble.assistant {
   background-color: var(--bubble-assistant);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
 }
 
-.message-role {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-  font-weight: 600;
-}
-
+/* Content */
 .message-content {
   white-space: pre-wrap;
   word-break: break-word;
@@ -175,10 +203,7 @@ watch(() => {
   padding: 0;
 }
 
-.streaming-indicator {
-  display: inline;
-}
-
+/* Streaming cursor */
 .cursor {
   animation: blink 1s step-end infinite;
 }
@@ -187,12 +212,27 @@ watch(() => {
   50% { opacity: 0; }
 }
 
-.error-banner {
-  background: rgba(255, 68, 68, 0.13);
-  color: #ff4444;
-  padding: 8px 16px;
-  margin: 8px 0;
-  border-radius: 8px;
-  font-size: 0.875rem;
+/* Tool calls pill */
+.tool-calls-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.tool-calls-icon {
+  font-size: 0.75rem;
+}
+
+.tool-calls-names {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 </style>

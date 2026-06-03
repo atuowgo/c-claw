@@ -226,6 +226,55 @@ public class MemoryStore {
         }
     }
 
+    public List<SessionInfo> listSessions(int limit) {
+        String sql = "SELECT id, title, created_at, active, message_count FROM sessions WHERE active = 1 ORDER BY created_at DESC LIMIT ?";
+        List<SessionInfo> sessions = new ArrayList<>();
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    sessions.add(new SessionInfo(
+                        rs.getString("id"),
+                        rs.getString("title"),
+                        rs.getLong("created_at"),
+                        rs.getInt("active") == 1,
+                        rs.getInt("message_count")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to list sessions", e);
+        }
+        return sessions;
+    }
+
+    public void deleteSession(String sessionId) {
+        String sql = "DELETE FROM sessions WHERE id = ?";
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, sessionId);
+            int deleted = ps.executeUpdate();
+            if (deleted > 0) {
+                log.debug("Deleted session: {}", sessionId);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to delete session: " + sessionId, e);
+        }
+    }
+
+    public void renameSession(String sessionId, String title) {
+        String sql = "UPDATE sessions SET title = ? WHERE id = ?";
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, title);
+            ps.setString(2, sessionId);
+            int updated = ps.executeUpdate();
+            if (updated > 0) {
+                log.debug("Renamed session {} to {}", sessionId, title);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to rename session: " + sessionId, e);
+        }
+    }
+
     public int cleanupOldMessages(int days) {
         long cutoff = System.currentTimeMillis() - (long) days * 24 * 60 * 60 * 1000;
         String sql = "DELETE FROM messages WHERE created_at < ?";

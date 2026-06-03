@@ -8,6 +8,33 @@
   --accent-hover: #5b8afb;
   --bubble-user: #2d4a8a;
   --bubble-assistant: #2a2a4a;
+
+  /* layout tokens */
+  --sidebar-width: 240px;
+  --right-panel-width: 320px;
+
+  /* enhanced palette */
+  --surface-hover: #1e2a4a;
+  --surface-active: #233050;
+  --danger-color: #e0556a;
+  --danger-hover: #e87082;
+  --success-color: #4ec9b0;
+  --warning-color: #d4a84b;
+
+  /* spacing & shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+
+  /* transition tokens */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 *,
