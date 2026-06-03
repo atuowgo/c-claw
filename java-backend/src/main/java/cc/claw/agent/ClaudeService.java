@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Service
 public class ClaudeService {
@@ -265,6 +266,42 @@ public class ClaudeService {
         log.debug("[Agent] buildParams: model={}, messages={}, tools={}",
             model, messages.size(), tools.size());
         return builder.build();
+    }
+
+    /**
+     * Generate a short title (3-8 words) for a conversation based on user messages.
+     */
+    public String generateTitle(List<String> userMessages) {
+        String joined = String.join("\n", userMessages);
+        String prompt = "Based on the following user messages, generate a very short title (3-8 words, in the same language as the messages) that summarizes what this conversation is about. Return ONLY the title, no quotes, no explanation.\n\nUser messages:\n" + joined;
+
+        var params = MessageCreateParams.builder()
+            .model(Model.of(model))
+            .maxTokens(50)
+            .system("You are a title generator. You ONLY output the title, nothing else.")
+            .messages(List.of(MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .content(MessageParam.Content.ofString(prompt))
+                .build()))
+            .build();
+
+        try {
+            var response = client.messages().create(params);
+            String raw = response.content().stream()
+                .filter(c -> c.text().isPresent())
+                .map(c -> c.text().get().text())
+                .collect(Collectors.joining())
+                .trim();
+            // Clean up common model artifacts
+            raw = raw.replaceAll("^[\"'「」『』]+|[\"'「」『』]+$", "").trim();
+            raw = raw.replaceAll("^(Title|标题|主题)[：:]\s*", "").trim();
+            // Replace newlines with spaces
+            raw = raw.replaceAll("\\s+", " ").trim();
+            return raw.isEmpty() ? null : raw;
+        } catch (Exception e) {
+            log.error("Failed to generate title", e);
+            return null;
+        }
     }
 
     // -- internal records --

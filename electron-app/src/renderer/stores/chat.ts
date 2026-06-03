@@ -1,17 +1,29 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useToolTracesStore } from './toolTraces'
+import { useSessionsStore } from './sessions'
+
+export interface ToolCallRecord {
+    toolUseId: string
+    toolName: string
+    status: 'running' | 'success' | 'error'
+    summary?: string
+}
 
 export interface Message {
     id: string
     role: 'user' | 'assistant'
     content: string
     isStreaming: boolean
+    thinking?: string
+    toolCalls?: ToolCallRecord[]
 }
 
 export const useChatStore = defineStore('chat', () => {
     const messages = ref<Message[]>([])
     const isSending = ref(false)
     const error = ref<string | null>(null)
+    const currentSessionId = ref<string | null>(null)
 
     let backendPort: number | null = null
 
@@ -31,8 +43,13 @@ export const useChatStore = defineStore('chat', () => {
         return Date.now().toString(36) + Math.random().toString(36).slice(2)
     }
 
-    async function sendMessage(text: string) {
+    async function sendMessage(text: string, sessionId?: string | null) {
         if (isSending.value || !text.trim()) return
+
+        // Auto-create session if none exists
+        if (!currentSessionId.value && !sessionId) {
+            await createSession()
+        }
 
         isSending.value = true
         error.value = null
@@ -52,17 +69,20 @@ export const useChatStore = defineStore('chat', () => {
             id: assistantId,
             role: 'assistant',
             content: '',
-            isStreaming: true
+            isStreaming: true,
+            toolCalls: []
         })
-        // Access via reactive array to ensure Vue tracks mutations
         const getAssistantMsg = (): Message => messages.value.find(m => m.id === assistantId)!
 
         try {
             const port = await getPort()
+            const body: Record<string, string> = { message: text.trim() }
+            const sid = sessionId ?? currentSessionId.value
+            if (sid) body.sessionId = sid
             const response = await fetch(`http://127.0.0.1:${port}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text.trim() })
+                body: JSON.stringify(body)
             })
 
             if (!response.ok) {
@@ -104,6 +124,43 @@ export const useChatStore = defineStore('chat', () => {
                             } catch {
                                 // skip malformed delta
                             }
+                        } else if (currentEvent === 'tool_call') {
+                            try {
+                                const parsed = JSON.parse(data)
+                                const record: ToolCallRecord = {
+                                    toolUseId: parsed.toolUseId,
+                                    toolName: parsed.toolName,
+                                    status: 'running'
+                                }
+                                getAssistantMsg().toolCalls = [
+                                    ...(getAssistantMsg().toolCalls || []),
+                                    record
+                                ]
+                                const traces = useToolTracesStore()
+                                traces.addTrace(record)
+                                traces.openPanel()
+                            } catch {
+                                // skip malformed tool_call
+                            }
+                        } else if (currentEvent === 'tool_result') {
+                            try {
+                                const parsed = JSON.parse(data)
+                                const msg = getAssistantMsg()
+                                if (msg.toolCalls) {
+                                    const tc = msg.toolCalls.find(t => t.toolUseId === parsed.toolUseId)
+                                    if (tc) {
+                                        tc.status = parsed.success ? 'success' : 'error'
+                                        tc.summary = parsed.summary
+                                    }
+                                }
+                                const traces = useToolTracesStore()
+                                traces.updateTrace(parsed.toolUseId, {
+                                    status: parsed.success ? 'success' : 'error',
+                                    summary: parsed.summary
+                                })
+                            } catch {
+                                // skip malformed tool_result
+                            }
                         } else if (currentEvent === 'error') {
                             try {
                                 const parsed = JSON.parse(data)
@@ -125,6 +182,15 @@ export const useChatStore = defineStore('chat', () => {
             msg.isStreaming = false
         } finally {
             isSending.value = false
+
+            // Trigger async title generation for new sessions
+            const sid = sessionId ?? currentSessionId.value
+            if (sid) {
+                const sessionsStore = useSessionsStore()
+                sessionsStore.fetchSessions().then(() => {
+                    sessionsStore.generateTitle(sid)
+                })
+            }
         }
     }
 
@@ -133,5 +199,39 @@ export const useChatStore = defineStore('chat', () => {
         error.value = null
     }
 
-    return { messages, isSending, error, sendMessage, clearChat }
+    async function loadSession(sessionId: string) {
+        currentSessionId.value = sessionId
+        clearChat()
+        try {
+            const port = await getPort()
+            const response = await fetch(`http://127.0.0.1:${port}/api/sessions/${sessionId}/messages`)
+            if (!response.ok) return
+            const records = await response.json()
+            for (const r of records) {
+                messages.value.push({
+                    id: generateId(),
+                    role: r.role,
+                    content: r.content,
+                    isStreaming: false
+                })
+            }
+        } catch {
+            // silent — best-effort history loading
+        }
+    }
+
+    function clearCurrentSession() {
+        currentSessionId.value = null
+        clearChat()
+    }
+
+    async function createSession(): Promise<string> {
+        const sessionsStore = useSessionsStore()
+        const session = await sessionsStore.createSession()
+        currentSessionId.value = session.id
+        clearChat()
+        return session.id
+    }
+
+    return { messages, isSending, error, currentSessionId, sendMessage, clearChat, loadSession, clearCurrentSession, createSession }
 })
