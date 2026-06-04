@@ -1,7 +1,6 @@
 package cc.claw.config;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -9,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class AnthropicConfig {
 
     @Bean
-    public AnthropicClient anthropicClient(AnthropicProperties props) {
+    public AnthropicStreamingChatModel anthropicStreamingChatModel(AnthropicProperties props) {
         String apiKey = resolveApiKey(props);
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException(
@@ -18,9 +17,13 @@ public class AnthropicConfig {
             );
         }
 
-        return AnthropicOkHttpClient.builder()
+        return AnthropicStreamingChatModel.builder()
             .apiKey(apiKey)
+            .modelName(props.modelName())
             .baseUrl(props.baseUrl())
+            .maxTokens(4096)
+            .logRequests(true)
+            .logResponses(true)
             .build();
     }
 

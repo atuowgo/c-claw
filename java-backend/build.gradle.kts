@@ -20,7 +20,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("com.anthropic:anthropic-java:2.34.1")
+    implementation("dev.langchain4j:langchain4j-anthropic:1.15.1")
     implementation("org.xerial:sqlite-jdbc:3.45.1.0")
     implementation("org.yaml:snakeyaml:2.2")
 

@@ -1,16 +1,16 @@
 package cc.claw.agent.tool;
 
-import com.anthropic.models.messages.Tool;
+import dev.langchain4j.agent.tool.ToolSpecification;
 
 /**
- * ToolDefinition -- wraps an Anthropic Tool object with metadata for the agent loop.
+ * ToolDefinition -- wraps a LangChain4j ToolSpecification with metadata for the agent loop.
  */
 public record ToolDefinition(
     String name,
     String description,
-    Tool anthropicTool
+    ToolSpecification toolSpecification
 ) {
-    public static ToolDefinition of(String name, String description, Tool anthropicTool) {
-        return new ToolDefinition(name, description, anthropicTool);
+    public static ToolDefinition of(String name, String description, ToolSpecification spec) {
+        return new ToolDefinition(name, description, spec);
     }
 }
