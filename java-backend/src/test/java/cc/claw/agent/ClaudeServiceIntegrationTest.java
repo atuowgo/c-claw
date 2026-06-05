@@ -25,6 +25,7 @@ class ClaudeServiceIntegrationTest {
             textBuilder::append,
             tc -> {},
             tr -> {},
+            pr -> {},
             future::completeExceptionally,
             () -> future.complete(textBuilder.toString())
         );

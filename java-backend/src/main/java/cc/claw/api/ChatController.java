@@ -3,6 +3,7 @@ package cc.claw.api;
 import cc.claw.agent.ChatRequest;
 import cc.claw.agent.ClaudeService;
 import cc.claw.memory.MemoryStore;
+import cc.claw.permission.PermissionRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -90,6 +91,16 @@ public class ChatController {
                     "toolName", toolResult.toolName(),
                     "success", toolResult.success(),
                     "summary", toolResult.summary()
+                ));
+            },
+            permissionRequest -> {
+                log.info("[Chat] SSE发送 permission_request: toolUseId={}, toolName={}, level={}",
+                    permissionRequest.toolUseId(), permissionRequest.toolName(), permissionRequest.level());
+                sendEvent(emitter, "permission_request", Map.of(
+                    "toolUseId", permissionRequest.toolUseId(),
+                    "toolName", permissionRequest.toolName(),
+                    "level", permissionRequest.level().name(),
+                    "description", permissionRequest.description()
                 ));
             },
             error -> {

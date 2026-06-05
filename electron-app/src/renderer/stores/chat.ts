@@ -3,6 +3,13 @@ import { ref } from 'vue'
 import { useToolTracesStore } from './toolTraces'
 import { useSessionsStore } from './sessions'
 
+export interface PermissionRequest {
+    toolUseId: string
+    toolName: string
+    level: string
+    description: string
+}
+
 export interface ToolCallRecord {
     toolUseId: string
     toolName: string
@@ -24,6 +31,8 @@ export const useChatStore = defineStore('chat', () => {
     const isSending = ref(false)
     const error = ref<string | null>(null)
     const currentSessionId = ref<string | null>(null)
+    const pendingPermission = ref<PermissionRequest | null>(null)
+    const showPermissionDialog = ref(false)
 
     let backendPort: number | null = null
 
@@ -161,6 +170,19 @@ export const useChatStore = defineStore('chat', () => {
                             } catch {
                                 // skip malformed tool_result
                             }
+                        } else if (currentEvent === 'permission_request') {
+                            try {
+                                const parsed = JSON.parse(data)
+                                pendingPermission.value = {
+                                    toolUseId: parsed.toolUseId,
+                                    toolName: parsed.toolName,
+                                    level: parsed.level,
+                                    description: parsed.description
+                                }
+                                showPermissionDialog.value = true
+                            } catch {
+                                // skip malformed permission_request
+                            }
                         } else if (currentEvent === 'error') {
                             try {
                                 const parsed = JSON.parse(data)
@@ -233,5 +255,20 @@ export const useChatStore = defineStore('chat', () => {
         return session.id
     }
 
-    return { messages, isSending, error, currentSessionId, sendMessage, clearChat, loadSession, clearCurrentSession, createSession }
+    async function respondPermission(toolUseId: string, approved: boolean, scope: string) {
+        try {
+            const port = await getPort()
+            await fetch(`http://127.0.0.1:${port}/api/permission/respond`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ toolUseId, approved, scope })
+            })
+        } catch {
+            // silent — best-effort permission response
+        }
+        showPermissionDialog.value = false
+        pendingPermission.value = null
+    }
+
+    return { messages, isSending, error, currentSessionId, pendingPermission, showPermissionDialog, sendMessage, clearChat, loadSession, clearCurrentSession, createSession, respondPermission }
 })

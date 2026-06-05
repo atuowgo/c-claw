@@ -3,6 +3,8 @@ package cc.claw.agent;
 import cc.claw.agent.tool.ToolDefinition;
 import cc.claw.agent.tool.ToolExecutor;
 import cc.claw.agent.tool.ToolResult;
+import cc.claw.permission.PermissionInterceptor;
+import cc.claw.permission.PermissionRequest;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
@@ -46,13 +48,16 @@ public class ClaudeService {
     private final AnthropicStreamingChatModel chatModel;
     private final AsyncTaskExecutor executor;
     private final ToolExecutor toolExecutor;
+    private final PermissionInterceptor permissionInterceptor;
 
     public ClaudeService(AnthropicStreamingChatModel chatModel,
                          AsyncTaskExecutor executor,
-                         ToolExecutor toolExecutor) {
+                         ToolExecutor toolExecutor,
+                         PermissionInterceptor permissionInterceptor) {
         this.chatModel = chatModel;
         this.executor = executor;
         this.toolExecutor = toolExecutor;
+        this.permissionInterceptor = permissionInterceptor;
     }
 
     /**
@@ -62,6 +67,7 @@ public class ClaudeService {
                               Consumer<String> onDelta,
                               Consumer<ToolCallInfo> onToolCall,
                               Consumer<ToolResultInfo> onToolResult,
+                              Consumer<PermissionRequest> onPermissionRequest,
                               Consumer<Throwable> onError,
                               Runnable onComplete) {
         executor.execute(() -> {
@@ -70,6 +76,7 @@ public class ClaudeService {
                 : userMessage;
             log.info("[Agent] 开始处理: message={}", msgPreview);
             try {
+                permissionInterceptor.setOnPermissionRequest(onPermissionRequest);
                 runAgentLoop(userMessage, onDelta, onToolCall, onToolResult);
                 log.info("[Agent] 处理完成, 调用onComplete");
                 onComplete.run();
@@ -133,10 +140,25 @@ public class ClaudeService {
             // Add assistant message (with text and tool requests)
             messages.add(aiMessage);
 
-            // Execute all tool calls in parallel
+            // Check permission for each tool, skip denied ones
             List<CompletableFuture<ToolResult>> futures = toolRequests.stream()
                 .map(req -> {
                     log.info("[Agent] 执行工具: id={}, name={}", req.id(), req.name());
+                    try {
+                        boolean allowed = permissionInterceptor
+                            .intercept(req.id(), req.name(), req.arguments())
+                            .get(30, TimeUnit.SECONDS);
+                        if (!allowed) {
+                            log.warn("[Agent] 工具权限被拒绝: id={}, name={}", req.id(), req.name());
+                            return CompletableFuture.completedFuture(
+                                ToolResult.failure(req.id(), req.name(), "Permission denied"));
+                        }
+                    } catch (Exception e) {
+                        log.error("[Agent] 权限检查异常: id={}, name={}, error={}",
+                            req.id(), req.name(), e.getMessage());
+                        return CompletableFuture.completedFuture(
+                            ToolResult.failure(req.id(), req.name(), "Permission check failed: " + e.getMessage()));
+                    }
                     return toolExecutor.execute(req.id(), req.name(), req.arguments());
                 })
                 .toList();

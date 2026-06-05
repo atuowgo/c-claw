@@ -6,6 +6,12 @@
     </div>
     <MessageList :messages="chatStore.messages" />
     <InputBox :disabled="chatStore.isSending" @send="chatStore.sendMessage($event)" />
+    <PermissionDialog
+      v-if="chatStore.showPermissionDialog && chatStore.pendingPermission"
+      :request="chatStore.pendingPermission"
+      @respond="(resp) => chatStore.respondPermission(resp.toolUseId, resp.approved, resp.scope)"
+      @dismiss="chatStore.showPermissionDialog = false; chatStore.pendingPermission = null"
+    />
   </div>
 </template>
 
@@ -13,6 +19,7 @@
 import { useChatStore } from '../stores/chat'
 import MessageList from './MessageList.vue'
 import InputBox from './InputBox.vue'
+import PermissionDialog from './PermissionDialog.vue'
 
 const chatStore = useChatStore()
 </script>
